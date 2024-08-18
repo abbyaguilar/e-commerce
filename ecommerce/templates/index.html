@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Single Product Store</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            text-align: center;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        button {
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="product-name">Loading...</h1>
+        <img id="product-image" src="" alt="Product Image">
+        <p id="product-description">Loading...</p>
+        <p id="product-price">Loading...</p>
+        <p id="product-stock">Loading...</p>
+        <button id="buy-button">Buy Now</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('http://127.0.0.1:5000/products/1')  // Fetch product with ID 1
+                .then(response => response.json())
+                .then(product => {
+                    if (product.error) {
+                        document.querySelector('.container').innerHTML = `<p>${product.error}</p>`;
+                        return;
+                    }
+
+                    document.getElementById('product-name').textContent = product.Name;
+                    document.getElementById('product-description').textContent = product.Description || 'No description available';
+                    document.getElementById('product-price').textContent = `$${(product.Price / 100).toFixed(2)}`;
+                    document.getElementById('product-stock').textContent = `Stock: ${product.StockQuantity}`;
+                    // Assuming you have a product image URL or placeholder
+                    document.getElementById('product-image').src = product.ImageURL || 'placeholder.jpg';
+
+                    document.getElementById('buy-button').addEventListener('click', function() {
+                        fetch('/create-checkout-session', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                product_id: product.ProductID,
+                                quantity: 1
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                alert(data.error);
+                                return;
+                            }
+                            window.location.href = `https://checkout.stripe.com/pay/${data.id}`;
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching product:', error);
+                });
+        });
+    </script>
+</body>
+</html>
