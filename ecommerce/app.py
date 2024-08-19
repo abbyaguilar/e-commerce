@@ -2,10 +2,10 @@ from flask import Flask, jsonify, request, render_template
 import sqlite3
 import stripe
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)
-
 def get_db_connection():
     conn = sqlite3.connect('database.db')
     conn.row_factory = sqlite3.Row
@@ -64,7 +64,66 @@ def create_checkout_session():
 
         return jsonify({'id': checkout_session.id})
     except Exception as e:
-        return jsonify(error=str(e)), 500
+        return jsonify({'error': str(e)}), 500
+
+ADMIN_PASSWORD = '9999'
+
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+    data = request.get_json()
+    password = data.get('password')
+    if password == ADMIN_PASSWORD:
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 401
+
+@app.route('/admin/products', methods=['GET'])
+def admin_get_products():
+    conn = get_db_connection()
+    products = conn.execute('SELECT * FROM Products').fetchall()
+    conn.close()
+    return jsonify([dict(row) for row in products])
+
+@app.route('/admin/products/<int:id>', methods=['GET'])
+def admin_get_product(id):
+    conn = get_db_connection()
+    product = conn.execute('SELECT * FROM Products WHERE ProductID = ?', (id,)).fetchone()
+    conn.close()
+    if product is None:
+        return jsonify({'error': 'Product not found'}), 404
+    return jsonify(dict(product))
+
+@app.route('/admin/products', methods=['POST'])
+def admin_create_product():
+    data = request.json
+    conn = get_db_connection()
+    conn.execute('''
+        INSERT INTO Products (Name, Description, Price, StockQuantity, CategoryID)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (data['Name'], data['Description'], data['Price'], data['StockQuantity'], data['CategoryID']))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Product created successfully'}), 201
+
+@app.route('/admin/products/<int:id>', methods=['PUT'])
+def admin_update_product(id):
+    data = request.json
+    conn = get_db_connection()
+    conn.execute('''
+        UPDATE Products
+        SET Name = ?, Description = ?, Price = ?, StockQuantity = ?, CategoryID = ?
+        WHERE ProductID = ?
+    ''', (data['Name'], data['Description'], data['Price'], data['StockQuantity'], data['CategoryID'], id))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Product updated successfully'})
+
+@app.route('/admin/products/<int:id>', methods=['DELETE'])
+def admin_delete_product(id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM Products WHERE ProductID = ?', (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Product deleted successfully'})
 
 @app.route('/success')
 def success():
@@ -78,7 +137,6 @@ def cancel():
 def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
-
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, endpoint_secret
@@ -115,3 +173,4 @@ def handle_payment(session):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
