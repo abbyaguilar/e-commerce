@@ -45,36 +45,18 @@ const App = () => {
   }, [testimonials.length]);
 
   const handleBuyNow = (productId) => {
-    console.log('Initiating checkout session for product ID:', productId);
     fetch('http://127.0.0.1:5000/create-checkout-session', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        product_id: productId,
-        quantity: 1,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: productId, quantity: 1 })
     })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.json();
-      })
+      .then(response => response.json())
       .then(data => {
-        console.log('Received data from checkout session:', data);
         if (data.error) {
-          Alert.alert('Error', `Failed to create checkout session. Error: ${data.error}`);
-          return;
+          Alert.alert('Error', data.error);
+        } else {
+          Linking.openURL(`https://checkout.stripe.com/pay/${data.id}`);
         }
-        const checkoutUrl = `https://checkout.stripe.com/pay/${data.id}`;
-        console.log('Redirecting to Stripe checkout:', checkoutUrl);
-        Linking.openURL(checkoutUrl)
-          .catch(err => {
-            console.error('Error opening checkout URL:', err);
-            Alert.alert('Error', 'Failed to open checkout URL. Please try again.');
-          });
       })
       .catch(error => {
         console.error('Error creating checkout session:', error);
@@ -82,112 +64,81 @@ const App = () => {
       });
   };
 
-  const scrollToSection = (section) => {
-    setCurrentSection(section);
-    if (scrollViewRef.current && sectionOffsets[section] !== undefined) {
-      scrollViewRef.current.scrollTo({ y: sectionOffsets[section], animated: true });
-    }
-  };
-
-  const handleLayout = (section) => (event) => {
-    const { y } = event.nativeEvent.layout;
-    setSectionOffsets(prevOffsets => ({
-      ...prevOffsets,
-      [section]: y,
-    }));
-  };
-
   const handleAdminLogin = () => {
     fetch('http://127.0.0.1:5000/admin/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ password }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
     })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.json();
-      })
+      .then(response => response.json())
       .then(data => {
         if (data.success) {
           setIsAdmin(true);
           setAdminModalVisible(false);
         } else {
-          Alert.alert('Error', 'Incorrect password');
+          Alert.alert('Login Failed', 'Incorrect password');
         }
       })
       .catch(error => {
-        console.error('Error logging in:', error);
+        console.error('Error during admin login:', error);
         Alert.alert('Error', `Failed to login. Error: ${error.message}`);
       });
   };
 
-  const handleAddProduct = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/admin/products', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newProduct),
+  const handleAddProduct = () => {
+    fetch('http://127.0.0.1:5000/admin/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProduct)
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.message) {
+          Alert.alert('Success', data.message);
+          setProductModalVisible(false);
+        }
+      })
+      .catch(error => {
+        console.error('Error adding product:', error);
+        Alert.alert('Error', `Failed to add product. Error: ${error.message}`);
       });
-      const result = await response.json();
-      if (response.ok) {
-        alert(result.message);
-        fetchProducts(); // Refresh product list
-        setProductModalVisible(false);
-      } else {
-        alert('Failed to add product');
-      }
-    } catch (error) {
-      alert('Error adding product');
-      console.error(error);
-    }
   };
-  
-  
 
-  const handleUpdateProduct = async () => {
-    try {
-      const response = await fetch(`http://localhost:5000/admin/products/${editingProduct.ProductID}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newProduct),
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setProductModalVisible(true);
+  };
+
+  const handleUpdateProduct = () => {
+    fetch(`http://127.0.0.1:5000/admin/products/${editingProduct.ProductID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingProduct)
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.message) {
+          Alert.alert('Success', data.message);
+          setProductModalVisible(false);
+          setEditingProduct(null);
+        }
+      })
+      .catch(error => {
+        console.error('Error updating product:', error);
+        Alert.alert('Error', `Failed to update product. Error: ${error.message}`);
       });
-      const result = await response.json();
-      if (response.ok) {
-        alert(result.message);
-        fetchProducts(); // Refresh product list
-        setProductModalVisible(false);
-        setEditingProduct(null);
-      } else {
-        alert('Failed to update product');
-      }
-    } catch (error) {
-      alert('Error updating product');
-      console.error(error);
-    }
-  };  
+  };
 
   const handleDeleteProduct = (productId) => {
     fetch(`http://127.0.0.1:5000/admin/products/${productId}`, {
-      method: 'DELETE',
+      method: 'DELETE'
     })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
+      .then(response => response.json())
+      .then(data => {
+        if (data.message) {
+          Alert.alert('Success', data.message);
+          setProducts(products.filter(product => product.ProductID !== productId));
         }
-        Alert.alert('Success', 'Product deleted successfully');
-        // Refresh product list
-        fetch('http://127.0.0.1:5000/products')
-          .then(response => response.json())
-          .then(data => setProducts(data))
-          .catch(error => console.error('Error fetching products:', error));
       })
       .catch(error => {
         console.error('Error deleting product:', error);
@@ -195,151 +146,152 @@ const App = () => {
       });
   };
 
-  const openProductModal = (product = null) => {
-    setEditingProduct(product);
-    setNewProduct(product ? { ...product } : { Name: '', Description: '', Price: '', StockQuantity: '', CategoryID: '' });
-    setProductModalVisible(true);
+  const scrollToSection = (section) => {
+    setCurrentSection(section);
+    scrollViewRef.current.scrollTo({ y: sectionOffsets[section], animated: true });
   };
+  
+  const handleSectionLayout = (section, event) => {
+    const { y } = event.nativeEvent.layout;
+    setSectionOffsets(prevOffsets => ({ ...prevOffsets, [section]: y }));
+  };
+  
 
   return (
-    <View style={styles.container}>
+    <ScrollView ref={scrollViewRef} style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.storeName}>My Awesome Store</Text>
+        <Text style={styles.title}>E-Commerce Store</Text>
+        <View style={styles.menu}>
+          <TouchableOpacity onPress={() => scrollToSection('about')} style={styles.menuButton}>
+            <Text style={styles.menuText}>About Us</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => scrollToSection('products')} style={styles.menuButton}>
+            <Text style={styles.menuText}>Products</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => scrollToSection('testimonials')} style={styles.menuButton}>
+            <Text style={styles.menuText}>Testimonials</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => scrollToSection('contact')} style={styles.menuButton}>
+            <Text style={styles.menuText}>Contact Us</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setAdminModalVisible(true)} style={styles.menuButton}>
+            <Text style={styles.menuText}>Admin</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.menu}>
-        <TouchableOpacity onPress={() => scrollToSection('about')} style={styles.menuItem}>
-          <Text style={styles.menuText}>About Us</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => scrollToSection('products')} style={styles.menuItem}>
-          <Text style={styles.menuText}>Products</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => scrollToSection('testimonials')} style={styles.menuItem}>
-          <Text style={styles.menuText}>Testimonials</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => scrollToSection('contact')} style={styles.menuItem}>
-          <Text style={styles.menuText}>Contact</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setAdminModalVisible(true)} style={styles.menuItem}>
-          <Text style={styles.menuText}>Admin</Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView ref={scrollViewRef} style={styles.scrollContainer}>
-        <View style={styles.section} onLayout={handleLayout('about')}>
-          <Text style={styles.header}>About Us</Text>
-          <Text style={styles.text}>Welcome to our store!</Text>
-        </View>
-        <View style={styles.section} onLayout={handleLayout('products')}>
-          <Text style={styles.header}>Products</Text>
-          {products.map(product => (
-            <View key={product.ProductID} style={styles.product}>
-              <Text style={styles.productName}>{product.Name}</Text>
-              <Text style={styles.productPrice}>${product.Price}</Text>
-              <TouchableOpacity style={styles.buyNowButton} onPress={() => handleBuyNow(product.ProductID)}>
-                <Text style={styles.buyNowText}>Buy Now</Text>
-              </TouchableOpacity>
-              {isAdmin && (
-                <View style={styles.adminButtons}>
-                  <TouchableOpacity style={styles.button} onPress={() => openProductModal(product)}>
-                    <Text style={styles.buttonText}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.button} onPress={() => handleDeleteProduct(product.ProductID)}>
-                    <Text style={styles.buttonText}>Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ))}
-          {isAdmin && (
-            <TouchableOpacity style={styles.button} onPress={() => openProductModal()}>
-              <Text style={styles.buttonText}>Add New Product</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <View style={styles.section} onLayout={handleLayout('testimonials')}>
-          <Text style={styles.header}>Testimonials</Text>
-          <View style={styles.testimonialContainer}>
-            <Text style={styles.testimonialText}>{testimonials[currentTestimonialIndex].text}</Text>
-          </View>
-        </View>
-        <View style={styles.section} onLayout={handleLayout('contact')}>
-          <Text style={styles.header}>Contact Us</Text>
-          <Text style={styles.text}>Email: contact@myawesomestore.com</Text>
-          <Text style={styles.text}>Phone: (123) 456-7890</Text>
-        </View>
-      </ScrollView>
 
-      {/* Admin Login Modal */}
+      <View onLayout={(event) => handleSectionLayout('about', event)} style={styles.section}>
+        <Text style={styles.sectionTitle}>About Us</Text>
+        <Text style={styles.sectionContent}>We are a leading e-commerce store providing the best products with top-notch customer service.</Text>
+      </View>
+
+      <View onLayout={(event) => handleSectionLayout('products', event)} style={styles.section}>
+        <Text style={styles.sectionTitle}>Products</Text>
+        {products.map(product => (
+          <View key={product.ProductID} style={styles.product}>
+            <Text style={styles.productName}>{product.Name}</Text>
+            <Text style={styles.productDescription}>{product.Description}</Text>
+            <Text style={styles.productPrice}>${product.Price.toFixed(2)}</Text>
+            <TouchableOpacity style={styles.button} onPress={() => handleBuyNow(product.ProductID)}>
+              <Text style={styles.buttonText}>Buy Now</Text>
+            </TouchableOpacity>
+            {isAdmin && (
+              <View style={styles.adminButtons}>
+                <TouchableOpacity style={styles.button} onPress={() => handleEditProduct(product)}>
+                  <Text style={styles.buttonText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.button} onPress={() => handleDeleteProduct(product.ProductID)}>
+                  <Text style={styles.buttonText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ))}
+        {isAdmin && (
+          <TouchableOpacity style={styles.button} onPress={() => setProductModalVisible(true)}>
+            <Text style={styles.buttonText}>Add New Product</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View onLayout={(event) => handleSectionLayout('testimonials', event)} style={styles.section}>
+        <Text style={styles.sectionTitle}>Testimonials</Text>
+        <Text style={styles.testimonial}>{testimonials[currentTestimonialIndex].text}</Text>
+      </View>
+
+      <View onLayout={(event) => handleSectionLayout('contact', event)} style={styles.section}>
+        <Text style={styles.sectionTitle}>Contact Us</Text>
+        <Text style={styles.sectionContent}>Feel free to reach out to us at contact@ecommerce.com</Text>
+      </View>
+
+      {/* Admin Modal */}
       <Modal
-        visible={adminModalVisible}
-        transparent={true}
         animationType="slide"
+        transparent={true}
+        visible={adminModalVisible}
         onRequestClose={() => setAdminModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalHeader}>Admin Login</Text>
+            <Text style={styles.modalTitle}>Admin Login</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter password"
+              placeholder="Enter Admin Password"
               secureTextEntry={true}
-              value={password}
               onChangeText={setPassword}
+              value={password}
             />
             <TouchableOpacity style={styles.button} onPress={handleAdminLogin}>
               <Text style={styles.buttonText}>Login</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => setAdminModalVisible(false)}>
-              <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Add/Edit Product Modal */}
+      {/* Product Modal */}
       <Modal
-        visible={productModalVisible}
-        transparent={true}
         animationType="slide"
+        transparent={true}
+        visible={productModalVisible}
         onRequestClose={() => {
           setProductModalVisible(false);
           setEditingProduct(null);
-          setNewProduct({ Name: '', Description: '', Price: '', StockQuantity: '', CategoryID: '' });
         }}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalHeader}>{editingProduct ? 'Edit Product' : 'Add New Product'}</Text>
+            <Text style={styles.modalTitle}>{editingProduct ? 'Edit Product' : 'Add New Product'}</Text>
             <TextInput
               style={styles.input}
               placeholder="Name"
-              value={newProduct.Name}
-              onChangeText={(text) => setNewProduct({ ...newProduct, Name: text })}
+              onChangeText={text => setEditingProduct(prev => ({ ...prev, Name: text }))}
+              value={editingProduct ? editingProduct.Name : newProduct.Name}
             />
             <TextInput
               style={styles.input}
               placeholder="Description"
-              value={newProduct.Description}
-              onChangeText={(text) => setNewProduct({ ...newProduct, Description: text })}
+              onChangeText={text => setEditingProduct(prev => ({ ...prev, Description: text }))}
+              value={editingProduct ? editingProduct.Description : newProduct.Description}
             />
             <TextInput
               style={styles.input}
               placeholder="Price"
-              value={newProduct.Price}
-              onChangeText={(text) => setNewProduct({ ...newProduct, Price: text })}
               keyboardType="numeric"
+              onChangeText={text => setEditingProduct(prev => ({ ...prev, Price: text }))}
+              value={editingProduct ? editingProduct.Price : newProduct.Price}
             />
             <TextInput
               style={styles.input}
               placeholder="Stock Quantity"
-              value={newProduct.StockQuantity}
-              onChangeText={(text) => setNewProduct({ ...newProduct, StockQuantity: text })}
               keyboardType="numeric"
+              onChangeText={text => setEditingProduct(prev => ({ ...prev, StockQuantity: text }))}
+              value={editingProduct ? editingProduct.StockQuantity : newProduct.StockQuantity}
             />
             <TextInput
               style={styles.input}
               placeholder="Category ID"
-              value={newProduct.CategoryID}
-              onChangeText={(text) => setNewProduct({ ...newProduct, CategoryID: text })}
+              onChangeText={text => setEditingProduct(prev => ({ ...prev, CategoryID: text }))}
+              value={editingProduct ? editingProduct.CategoryID : newProduct.CategoryID}
             />
             <TouchableOpacity
               style={styles.button}
@@ -348,19 +300,18 @@ const App = () => {
               <Text style={styles.buttonText}>{editingProduct ? 'Update Product' : 'Add Product'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.button}
+              style={[styles.button, styles.cancelButton]}
               onPress={() => {
                 setProductModalVisible(false);
                 setEditingProduct(null);
-                setNewProduct({ Name: '', Description: '', Price: '', StockQuantity: '', CategoryID: '' });
               }}
             >
-              <Text style={styles.buttonText}>Close</Text>
+              <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -368,85 +319,89 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   header: {
     padding: 20,
     backgroundColor: '#f8f8f8',
-    width: '100%',
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
-  storeName: {
-    fontSize: 24,
+  title: {
+    fontSize: 33,
     fontWeight: 'bold',
   },
   menu: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    paddingVertical: 10,
+    marginTop: 10,
   },
-  menuItem: {
-    flex: 1,
+  menuButton: {
+    marginHorizontal: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 5,
     alignItems: 'center',
   },
   menuText: {
-    color: 'black',
-    fontSize: 18,
-  },
-  scrollContainer: {
-    flex: 1,
-    width: '100%',
+    fontSize: 16,
+    textAlign: 'center',
   },
   section: {
     padding: 20,
-    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    alignItems: 'center', // Center content within the section
   },
-  header: {
+  sectionTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: 'seni-bold',
+    marginBottom: 10,
+    textAlign: 'center', // Center the section title
   },
-  text: {
+  sectionContent: {
     fontSize: 16,
-    marginVertical: 10,
-    textAlign: 'center',
+    textAlign: 'center', // Center the section content
   },
   product: {
-    marginBottom: 20,
+    padding: 10,
     alignItems: 'center',
   },
   productName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontSize: 16,
+    marginBottom: 5,
+    textAlign: 'center', // Center the product name
+  },
+  productDescription: {
+    fontSize: 14,
+    marginBottom: 5,
+    textAlign: 'center', // Center the product description
   },
   productPrice: {
     fontSize: 16,
-    color: '#555',
-    textAlign: 'center',
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center', // Center the product price
   },
-  buyNowButton: {
-    marginTop: 10,
-    backgroundColor: '#007BFF',
-    padding: 10,
-    borderRadius: 5,
-    width: '100%',
-  },
-  buyNowText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontSize: 16,
-  },
-  testimonialContainer: {
-    backgroundColor: '#f8f8f8',
-    padding: 20,
+  button: {
+    backgroundColor: '#ddd',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 5,
     alignItems: 'center',
+    marginBottom: 5,
   },
-  testimonialText: {
+  buttonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  adminButtons: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
+  testimonial: {
     fontSize: 16,
+    fontStyle: 'italic',
     textAlign: 'center',
+    marginTop: 10,
   },
   modalContainer: {
     flex: 1,
@@ -455,46 +410,29 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
+    width: '33%',
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 10,
-    width: '80%',
-    maxWidth: 400,
+    alignItems: 'center',
   },
-  modalHeader: {
-    fontSize: 18,
+  modalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
-    textAlign: 'center',
   },
   input: {
+    width: '100%',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     marginBottom: 10,
-    padding: 10,
+    padding: 8,
     fontSize: 16,
   },
-  button: {
-    backgroundColor: '#007BFF',
-    padding: 10,
-    borderRadius: 5,
-    marginVertical: 5,
-  },
-  buttonText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontSize: 16,
-  },
-  adminButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 10,
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    flex: 1,
+  cancelButton: {
+    backgroundColor: '#bbb',
   },
 });
+
 
 export default App;
