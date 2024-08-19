@@ -2,7 +2,6 @@ from flask import Flask, jsonify, request, render_template
 import sqlite3
 import stripe
 from flask_cors import CORS
-import os
 
 app = Flask(__name__)
 CORS(app)
@@ -95,27 +94,37 @@ def admin_get_product(id):
 @app.route('/admin/products', methods=['POST'])
 def admin_create_product():
     data = request.json
-    conn = get_db_connection()
-    conn.execute('''
-        INSERT INTO Products (Name, Description, Price, StockQuantity, CategoryID)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (data['Name'], data['Description'], data['Price'], data['StockQuantity'], data['CategoryID']))
-    conn.commit()
-    conn.close()
-    return jsonify({'message': 'Product created successfully'}), 201
+    try:
+        conn = get_db_connection()
+        conn.execute('''
+            INSERT INTO Products (Name, Price, StockQuantity)
+            VALUES (?, ?, ?)
+        ''', (data['Name'], data['Price'], data['StockQuantity']))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Product created successfully'}), 201
+    except KeyError as e:
+        return jsonify({"error": f"Missing key: {str(e)}"}), 400
 
 @app.route('/admin/products/<int:id>', methods=['PUT'])
 def admin_update_product(id):
     data = request.json
-    conn = get_db_connection()
-    conn.execute('''
-        UPDATE Products
-        SET Name = ?, Description = ?, Price = ?, StockQuantity = ?, CategoryID = ?
-        WHERE ProductID = ?
-    ''', (data['Name'], data['Description'], data['Price'], data['StockQuantity'], data['CategoryID'], id))
-    conn.commit()
-    conn.close()
-    return jsonify({'message': 'Product updated successfully'})
+    try:
+        name = data['Name']
+        price = data['Price']
+        stock_quantity = data['StockQuantity']
+
+        conn = get_db_connection()
+        conn.execute('''
+            UPDATE Products
+            SET Name = ?, Price = ?, StockQuantity = ?
+            WHERE ProductID = ?
+        ''', (name, price, stock_quantity, id))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Product updated successfully'})
+    except KeyError as e:
+        return jsonify({"error": f"Missing key: {str(e)}"}), 400
 
 @app.route('/admin/products/<int:id>', methods=['DELETE'])
 def admin_delete_product(id):
@@ -137,6 +146,7 @@ def cancel():
 def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
+    endpoint_secret = 'YOUR_STRIPE_ENDPOINT_SECRET'
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, endpoint_secret
@@ -173,4 +183,3 @@ def handle_payment(session):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
